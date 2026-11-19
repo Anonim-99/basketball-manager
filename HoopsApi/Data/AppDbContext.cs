@@ -4,6 +4,17 @@ namespace HoopsApi.Data;
 
 public class AppDbContext : DbContext
 {
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Team>()
+            .HasMany(t => t.Players)
+            .WithOne()
+            .HasForeignKey(p => p.TeamId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) {}
 
     //Registering Databases

@@ -91,6 +91,8 @@ namespace HoopsApi.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TeamId");
+
                     b.ToTable("Players");
                 });
 
@@ -117,6 +119,20 @@ namespace HoopsApi.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Teams");
+                });
+
+            modelBuilder.Entity("HoopsApi.Models.Player", b =>
+                {
+                    b.HasOne("HoopsApi.Models.Team", null)
+                        .WithMany("Players")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HoopsApi.Models.Team", b =>
+                {
+                    b.Navigation("Players");
                 });
 #pragma warning restore 612, 618
         }
