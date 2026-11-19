@@ -2,6 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using HoopsApi.Data;
 using Scalar.AspNetCore;
 using HoopsApi.Models;
+using System.Security.Claims;
+using System.Text;
+using HoopsApi.Auth;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +15,47 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllers();
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+
+var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+var jwtKey = jwtSection["Key"]
+    ?? throw new InvalidOperationException(
+        "Jwt:Key is missing. Run: dotnet user-secrets set \"Jwt:Key\" \"<32+ byte secret>\"");
+
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException("Jwt:Key must be at least 32 bytes (256 bits).");
+}
+
+builder.Services.AddIdentityCore<AppUser>(options =>
+{
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = false;
+    options.User.RequireUniqueEmail = true;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = jwtSection["Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddOpenApi();
 
@@ -21,6 +68,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
@@ -31,6 +79,41 @@ using (var scope = app.Services.CreateScope())
     
     // Ensure database exists
     await context.Database.MigrateAsync();
+
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+    foreach (var roleName in new[] { "Admin", "Scorekeeper" })
+    {
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+        }
+    }
+
+    const string adminEmail = "admin@hoops.local";
+
+    if (await userManager.FindByEmailAsync(adminEmail) is null)
+    {
+        var admin = new AppUser
+        {
+            UserName = adminEmail,
+            Email = adminEmail,
+            DisplayName = "League Admin",
+            EmailConfirmed = true,
+            IsApproved = true
+        };
+
+        var result = await userManager.CreateAsync(admin, "Admin123!");
+
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Failed to seed admin: " + string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        await userManager.AddToRoleAsync(admin, "Admin");
+    }
 
     if (!await context.Teams.AnyAsync())
     {

@@ -1,8 +1,9 @@
 using HoopsApi.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 namespace HoopsApi.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<AppUser>
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
