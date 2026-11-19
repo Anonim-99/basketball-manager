@@ -1,0 +1,5 @@
+$kind: collection
+description: Basketball Manager API - Teams, Players, and Games endpoints
+variables:
+  game_id: ""
+  team_id: ""

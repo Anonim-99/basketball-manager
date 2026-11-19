@@ -1,0 +1,39 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/api/players'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "teamId": 1,
+      "firstName": "Michael",
+      "lastName": "Jordan",
+      "jerseyNumber": 23,
+      "position": "SG",
+      "points": 0,
+      "fouls": 0
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Created player has an ID", function () {
+          const json = pm.response.json();
+          pm.expect(json).to.have.property('id');
+          pm.expect(json.id).to.be.a('number');
+      });
+      pm.test("Created player name matches request", function () {
+          const json = pm.response.json();
+          pm.expect(json.firstName).to.eql("Michael");
+          pm.expect(json.lastName).to.eql("Jordan");
+      });
+      if (pm.response.code === 201) {
+          pm.collectionVariables.set("player_id", pm.response.json().id);
+      }

@@ -1,0 +1,26 @@
+$kind: http-request
+method: PUT
+url: '{{base_url}}/api/games/{{game_id}}'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": 1,
+      "homeTeamId": 1,
+      "awayTeamId": 2,
+      "homeScore": 50,
+      "awayScore": 48,
+      "currentQuarter": 3,
+      "status": "InProgress"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 204 or 400 or 404", function () {
+          pm.expect(pm.response.code).to.be.oneOf([204, 400, 404]);
+      });

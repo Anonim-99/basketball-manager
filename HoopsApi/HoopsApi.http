@@ -1,0 +1,6 @@
+@HoopsApi_HostAddress = http://localhost:5001
+
+GET {{HoopsApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

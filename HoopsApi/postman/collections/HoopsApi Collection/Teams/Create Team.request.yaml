@@ -1,0 +1,34 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/api/teams'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Chicago Bulls",
+      "city": "Chicago",
+      "coachName": "Billy Donovan"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Created team has an ID", function () {
+          const json = pm.response.json();
+          pm.expect(json).to.have.property('id');
+          pm.expect(json.id).to.be.a('number');
+      });
+      pm.test("Created team name matches request", function () {
+          const json = pm.response.json();
+          pm.expect(json.name).to.eql("Chicago Bulls");
+      });
+      if (pm.response.code === 201) {
+          pm.collectionVariables.set("team_id", pm.response.json().id);
+      }

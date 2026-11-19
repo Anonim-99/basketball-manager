@@ -1,0 +1,22 @@
+$kind: http-request
+method: GET
+url: '{{base_url}}/api/players/{{player_id}}'
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200 or 404", function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 404]);
+      });
+      if (pm.response.code === 200) {
+          pm.test("Player has required fields", function () {
+              const json = pm.response.json();
+              pm.expect(json).to.have.property('id');
+              pm.expect(json).to.have.property('firstName');
+              pm.expect(json).to.have.property('lastName');
+              pm.expect(json).to.have.property('teamId');
+              pm.expect(json).to.have.property('jerseyNumber');
+              pm.expect(json).to.have.property('position');
+          });
+      }

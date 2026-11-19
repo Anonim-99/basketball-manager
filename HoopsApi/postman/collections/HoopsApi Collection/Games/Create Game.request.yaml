@@ -1,0 +1,42 @@
+$kind: http-request
+method: POST
+url: '{{base_url}}/api/games'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "homeTeamId": 1,
+      "awayTeamId": 2,
+      "homeScore": 0,
+      "awayScore": 0,
+      "currentQuarter": 1,
+      "status": "Scheduled"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 201 or 400", function () {
+          pm.expect(pm.response.code).to.be.oneOf([201, 400]);
+      });
+      if (pm.response.code === 201) {
+          pm.test("Created game has an ID", function () {
+              const json = pm.response.json();
+              pm.expect(json).to.have.property('id');
+              pm.expect(json.id).to.be.a('number');
+          });
+          pm.test("Home and away teams are different", function () {
+              const json = pm.response.json();
+              pm.expect(json.homeTeamId).to.not.eql(json.awayTeamId);
+          });
+          pm.collectionVariables.set("game_id", pm.response.json().id);
+      }
+      if (pm.response.code === 400) {
+          pm.test("Error message is present", function () {
+              pm.expect(pm.response.text()).to.not.be.empty;
+          });
+      }

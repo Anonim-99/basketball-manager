@@ -1,0 +1,14 @@
+name: Local
+values:
+  - key: base_url
+    value: 'http://localhost:5000'
+    enabled: true
+  - key: team_id
+    value: '1'
+    enabled: true
+  - key: player_id
+    value: '1'
+    enabled: true
+  - key: game_id
+    value: '1'
+    enabled: true
