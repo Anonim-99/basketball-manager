@@ -35,6 +35,41 @@ public class PlayersController : ControllerBase
         return Ok(players.Select(p => p.ToDto()));
     }
 
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResult<PlayerDto>>> GetPlayersPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        if (page < 1)
+        {
+            return BadRequest("page must be at least 1.");
+        }
+
+        if (pageSize is < 1 or > 50)
+        {
+            return BadRequest("pageSize must be between 1 and 50.");
+        }
+
+        var query = _context.Players.AsNoTracking();
+
+        var totalCount = await query.CountAsync();
+
+        var players = await query
+            .OrderBy(p => p.TeamId)
+            .ThenBy(p => p.JerseyNumber)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Ok(new PagedResult<PlayerDto>
+        {
+            Items = players.Select(p => p.ToDto()).ToList(),
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        });
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<PlayerDto>> GetPlayer(int id)
     {

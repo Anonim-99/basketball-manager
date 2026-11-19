@@ -54,6 +54,10 @@ namespace HoopsApi.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AwayTeamId");
+
+                    b.HasIndex("HomeTeamId");
+
                     b.ToTable("Games");
                 });
 
@@ -119,6 +123,21 @@ namespace HoopsApi.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Teams");
+                });
+
+            modelBuilder.Entity("HoopsApi.Models.Game", b =>
+                {
+                    b.HasOne("HoopsApi.Models.Team", null)
+                        .WithMany()
+                        .HasForeignKey("AwayTeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HoopsApi.Models.Team", null)
+                        .WithMany()
+                        .HasForeignKey("HomeTeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HoopsApi.Models.Player", b =>

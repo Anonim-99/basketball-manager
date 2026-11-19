@@ -13,6 +13,18 @@ public class AppDbContext : DbContext
             .WithOne()
             .HasForeignKey(p => p.TeamId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Game>()
+            .HasOne<Team>()
+            .WithMany()
+            .HasForeignKey(g => g.HomeTeamId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Game>()
+            .HasOne<Team>()
+            .WithMany()
+            .HasForeignKey(g => g.AwayTeamId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) {}

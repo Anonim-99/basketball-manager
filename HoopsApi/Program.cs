@@ -30,7 +30,7 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     
     // Ensure database exists
-    await context.Database.EnsureCreatedAsync();
+    await context.Database.MigrateAsync();
 
     if (!await context.Teams.AnyAsync())
     {

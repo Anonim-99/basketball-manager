@@ -40,6 +40,27 @@ public class TeamsController : ControllerBase
         return team is null ? NotFound() : Ok(team.ToDto());
     }
 
+    [HttpGet("{id:int}/games")]
+    public async Task<ActionResult<IEnumerable<GameDto>>> GetTeamGames(int id)
+    {
+        if (!await _context.Teams.AnyAsync(t => t.Id == id))
+        {
+            return NotFound();
+        }
+
+        var games = await _context.Games
+            .AsNoTracking()
+            .Where(g => g.HomeTeamId == id || g.AwayTeamId == id)
+            .OrderByDescending(g => g.Date)
+            .ToListAsync();
+
+        var teamNames = await _context.Teams
+            .AsNoTracking()
+            .ToDictionaryAsync(t => t.Id, t => t.Name);
+
+        return Ok(games.Select(g => g.ToDto(teamNames)));
+    }
+
     [HttpPost]
     public async Task<ActionResult<TeamDto>> CreateTeam(CreateTeamDto dto)
     {
