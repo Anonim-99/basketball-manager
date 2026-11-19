@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using HoopsApi.Data;
 using HoopsApi.Models;
 using HoopsApi.Models.DTOs;
-using Microsoft.IdentityModel.Tokens;
-using System.Data;
 
 [ApiController] // Handles Web API requests, not web pages
 [Route("api/[controller]")] // Sets the URL path
@@ -68,7 +66,7 @@ public class TeamsController : ControllerBase // ControllerBase -> gives access 
         {
             await _context.SaveChangesAsync();
         }
-        catch(DBConcurrencyException)
+        catch(DbUpdateConcurrencyException)
         {
             if(!await _context.Teams.AnyAsync(t => t.Id == id)) // if it gets deleted while trying to insert
             {
