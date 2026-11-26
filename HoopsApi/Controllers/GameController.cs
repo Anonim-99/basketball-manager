@@ -1,9 +1,9 @@
-using System.Reflection.Metadata.Ecma335;
 using HoopsApi.Data;
 using HoopsApi.Models;
+using HoopsApi.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ActionConstraints;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HoopsApi.Controllers;
 
@@ -11,127 +11,145 @@ namespace HoopsApi.Controllers;
 [Route("api/[controller]")]
 public class GamesController : ControllerBase
 {
+    private static readonly string[] AllowedStatuses = { "Scheduled", "In Progress", "Finished" };
+
     private readonly AppDbContext _context;
 
     public GamesController(AppDbContext context)
     {
-        _context=context;
+        _context = context;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Game>>> GetGames()
+    public async Task<ActionResult<IEnumerable<GameDto>>> GetGames(
+        [FromQuery] string? status,
+        [FromQuery] int? teamId)
     {
-        var games=await _context.Games.ToListAsync();
+        if (status is not null && !AllowedStatuses.Contains(status))
+        {
+            return BadRequest($"Status must be one of: {string.Join(", ", AllowedStatuses)}.");
+        }
 
-        return Ok(games);
+        var query = _context.Games.AsNoTracking();
+
+        if (status is not null)
+        {
+            query = query.Where(g => g.Status == status);
+        }
+
+        if (teamId is not null)
+        {
+            query = query.Where(g => g.HomeTeamId == teamId || g.AwayTeamId == teamId);
+        }
+
+        var games = await query
+            .OrderByDescending(g => g.Date)
+            .ToListAsync();
+
+        var teamNames = await GetTeamNamesAsync();
+
+        return Ok(games.Select(g => g.ToDto(teamNames)));
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Game>> GetGame(int id)
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<GameDto>> GetGame(int id)
     {
-        var game=await _context.Games.FindAsync(id);
+        var game = await _context.Games
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.Id == id);
 
-        if(game is null)
+        if (game is null)
         {
             return NotFound();
         }
 
-        return Ok(game);
+        var teamNames = await GetTeamNamesAsync();
+
+        return Ok(game.ToDto(teamNames));
     }
 
     [HttpPost]
-    public async Task<ActionResult<Game>> CreateGame(Game game)
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<GameDto>> CreateGame(CreateGameDto dto)
     {
-        if(game.HomeTeamId == game.AwayTeamId)
+        var error = await ValidateTeamsAsync(dto.HomeTeamId, dto.AwayTeamId);
+
+        if (error is not null)
         {
-            return BadRequest("Home and away teams cannot be the same.");
+            return BadRequest(error);
         }
 
-        var homeTeamExists = await _context.Teams.AnyAsync(t => t.Id == game.HomeTeamId);
-        if (!homeTeamExists)
+        var game = new Game
         {
-            return BadRequest($"Home team with ID {game.HomeTeamId} does not exist.");
-        }
-
-        var awayTeamExists = await _context.Teams.AnyAsync(t => t.Id == game.AwayTeamId);
-        if (!awayTeamExists)
-        {
-            return BadRequest($"Home team with ID {game.AwayTeamId} does not exist.");
-        }
+            HomeTeamId = dto.HomeTeamId,
+            AwayTeamId = dto.AwayTeamId,
+            HomeScore = 0,
+            AwayScore = 0,
+            CurrentQuarter = 1,
+            Status = "Scheduled",
+            Date = dto.Date.UtcDateTime
+        };
 
         _context.Games.Add(game);
-
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetGame), new{id = game.Id}, game);
+        var teamNames = await GetTeamNamesAsync();
 
+        return CreatedAtAction(nameof(GetGame), new { id = game.Id }, game.ToDto(teamNames));
     }
 
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateGame(int id, Game game)
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Scorekeeper")]
+    public async Task<IActionResult> UpdateGame(int id, UpdateGameDto dto)
     {
-        if (id != game.Id)
+        var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id);
+
+        if (game is null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        if (game.HomeTeamId == game.AwayTeamId)
+        var error = await ValidateTeamsAsync(dto.HomeTeamId, dto.AwayTeamId);
+
+        if (error is not null)
         {
-            return BadRequest("Home and away teams cannot be the same.");
+            return BadRequest(error);
         }
 
-        var homeTeamExists = await _context.Teams.AnyAsync(t => t.Id == game.HomeTeamId);
+        game.HomeTeamId = dto.HomeTeamId;
+        game.AwayTeamId = dto.AwayTeamId;
+        game.HomeScore = dto.HomeScore;
+        game.AwayScore = dto.AwayScore;
+        game.CurrentQuarter = dto.CurrentQuarter;
+        game.Status = dto.Status;
+        game.Date = dto.Date.UtcDateTime;
 
-        if (!homeTeamExists)
-        {
-            return BadRequest($"Home team with ID {game.HomeTeamId} does not exist.");
-        }
-
-        var awayTeamExists = await _context.Teams.AnyAsync(t => t.Id == game.AwayTeamId);
-
-        if (!awayTeamExists)
-        {
-            return BadRequest($"Away team with ID {game.AwayTeamId} does not exist.");
-        }
-
-        _context.Entry(game).State=EntityState.Modified;
-
-        try
-        {
-            await _context.SaveChangesAsync(); 
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if(!await _context.Games.AnyAsync(g => g.Id == id))
-            {
-                return NotFound();
-            }
-
-            throw;
-        }
+        await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteGame(int id)
     {
-        var game=await _context.Games.FindAsync(id);
+        var game = await _context.Games.FindAsync(id);
 
-        if(game is null)
+        if (game is null)
         {
             return NotFound();
         }
 
         _context.Games.Remove(game);
-
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<Game>>> GetGamesByTeamAndPlayer(int teamId, int playerId)
+    public async Task<ActionResult<IEnumerable<GameDto>>> SearchGames(
+        [FromQuery] int teamId,
+        [FromQuery] int playerId)
     {
         var playerBelongsToTeam = await _context.Players
             .AnyAsync(p => p.Id == playerId && p.TeamId == teamId);
@@ -142,11 +160,45 @@ public class GamesController : ControllerBase
         }
 
         var games = await _context.Games
+            .AsNoTracking()
             .Where(g => g.HomeTeamId == teamId || g.AwayTeamId == teamId)
+            .OrderByDescending(g => g.Date)
             .ToListAsync();
 
-        return Ok(games);
+        var teamNames = await GetTeamNamesAsync();
+
+        return Ok(games.Select(g => g.ToDto(teamNames)));
     }
 
-    
+    private Task<Dictionary<int, string>> GetTeamNamesAsync()
+    {
+        return _context.Teams
+            .AsNoTracking()
+            .ToDictionaryAsync(t => t.Id, t => t.Name);
+    }
+
+    private async Task<string?> ValidateTeamsAsync(int homeTeamId, int awayTeamId)
+    {
+        if (homeTeamId == awayTeamId)
+        {
+            return "Home and away teams cannot be the same.";
+        }
+
+        var existingIds = await _context.Teams
+            .Where(t => t.Id == homeTeamId || t.Id == awayTeamId)
+            .Select(t => t.Id)
+            .ToListAsync();
+
+        if (!existingIds.Contains(homeTeamId))
+        {
+            return $"Home team {homeTeamId} does not exist.";
+        }
+
+        if (!existingIds.Contains(awayTeamId))
+        {
+            return $"Away team {awayTeamId} does not exist.";
+        }
+
+        return null;
+    }
 }
