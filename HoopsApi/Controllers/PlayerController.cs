@@ -3,6 +3,7 @@ using HoopsApi.Models;
 using HoopsApi.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HoopsApi.Controllers;
 
@@ -81,6 +82,7 @@ public class PlayersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<PlayerDto>> CreatePlayer(CreatePlayerDto dto)
     {
         if (!await _context.Teams.AnyAsync(t => t.Id == dto.TeamId))
@@ -111,6 +113,7 @@ public class PlayersController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdatePlayer(int id, UpdatePlayerDto dto)
     {
         var player = await _context.Players.FirstOrDefaultAsync(p => p.Id == id);
@@ -142,6 +145,7 @@ public class PlayersController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeletePlayer(int id)
     {
         var player = await _context.Players.FindAsync(id);

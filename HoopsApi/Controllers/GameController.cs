@@ -3,6 +3,7 @@ using HoopsApi.Models;
 using HoopsApi.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HoopsApi.Controllers;
 
@@ -68,6 +69,7 @@ public class GamesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<GameDto>> CreateGame(CreateGameDto dto)
     {
         var error = await ValidateTeamsAsync(dto.HomeTeamId, dto.AwayTeamId);
@@ -97,6 +99,7 @@ public class GamesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Scorekeeper")]
     public async Task<IActionResult> UpdateGame(int id, UpdateGameDto dto)
     {
         var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id);
@@ -127,6 +130,7 @@ public class GamesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteGame(int id)
     {
         var game = await _context.Games.FindAsync(id);
